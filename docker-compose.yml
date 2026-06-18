@@ -1,0 +1,29 @@
+services:
+  ocr-plate-service:
+    container_name: ocr-plate-service-container
+    image: ${REGISTRY_HOST}/ocr-plate-service:${IMAGE_TAG:-v1.0.0}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:${APP_PORT:-8080}"
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      TZ: Asia/Jakarta
+    volumes:
+      - ./storage:/app/storage
+      - ./logs:/app/logs
+      - ./.paddleocr:/home/nonroot/.paddleocr
+      - ./.paddlex:/home/nonroot/.paddlex
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - shared-networks
+
+networks:
+  shared-networks:
+    name: shared-networks
+    external: true

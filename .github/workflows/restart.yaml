@@ -1,0 +1,39 @@
+name: Restart - OCR Plate Service
+on:
+  workflow_dispatch:
+
+jobs:
+  restart:
+    name: Restart - OCR Plate Service
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Notify Restart Started
+        continue-on-error: true
+        uses: rendsyah/.github/.github/actions/notify@main
+        with:
+          channels: '["telegram"]'
+          status: "STARTED"
+          notify_url: ${{ vars.NOTIFY_URL }}
+          remarks: "Restart started (Service)"
+
+      - name: Execute Restart
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_KEY }}
+          script: |
+            set -euo pipefail
+            cd /opt/projects/ocr-plate-service
+            make restart
+
+      - name: Notify Restart Result
+        if: always()
+        continue-on-error: true
+        uses: rendsyah/.github/.github/actions/notify@main
+        with:
+          channels: '["telegram"]'
+          status: ${{ job.status == 'success' && 'SUCCESS' || 'FAILED' }}
+          notify_url: ${{ vars.NOTIFY_URL }}
+          remarks: ${{ job.status == 'success' && 'Restart success (Service)' || 'Restart failed (Service)' }}

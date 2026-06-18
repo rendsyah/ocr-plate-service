@@ -1,0 +1,23 @@
+.venv/
+.git/
+.env
+__pycache__/
+*.pyc
+*.pyo
+storage/
+logs/
+.pytest_cache/
+models/*.pt
+!models/license_plate.pt
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+
+# Docs
+*.md
+README*

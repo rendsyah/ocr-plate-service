@@ -1,0 +1,34 @@
+# Environments
+.env
+.env.*
+!.env.example
+.venv/
+env/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.python-version
+
+# Lint & Test
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Logs & Data
+logs/
+*.log
+storage/snapshots/*
+storage/debug/*
+
+# OS & Editors
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.bak
