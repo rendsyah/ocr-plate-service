@@ -1,0 +1,30 @@
+default_stages: [pre-commit]
+
+repos:
+  # ---------------------------------------------------------
+  # STAGE 1: Enforce Commit Convention (Check Commit Message)
+  # ---------------------------------------------------------
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.0.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg] # Triggered when the commit message is written
+        args: []
+
+  # ---------------------------------------------------------
+  # STAGE 2: Run Local Linter & Formatter Before Push
+  # ---------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: make-format
+        name: Run Formatter via Makefile
+        entry: make format
+        language: system
+        stages: [pre-commit] # Triggered before each commit
+        pass_filenames: false
+      - id: make-lint-test
+        name: Run Linter and Tests via Makefile
+        entry: make lint test
+        language: system
+        stages: [pre-push] # Triggered only during git push
+        pass_filenames: false

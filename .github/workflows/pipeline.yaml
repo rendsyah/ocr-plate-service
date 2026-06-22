@@ -1,0 +1,139 @@
+name: Pipeline - OCR Plate Service
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  group: ocr-plate-service-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  ci:
+    name: CI - OCR Plate Service
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: ".python-version"
+      - run: uv sync --locked
+      - run: uv run ruff check
+      - run: PYTHONPATH=. uv run pytest tests/
+      - name: Notify CI Failed
+        if: failure()
+        uses: rendsyah/.github/.github/actions/notify@main
+        with:
+          channels: '["telegram"]'
+          status: "FAILED"
+          notify_url: ${{ vars.NOTIFY_URL }}
+          remarks: "Build failed (CI)"
+
+  publish:
+    name: Publish - OCR Plate Service
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.REGISTRY_HOST }}
+          username: ${{ secrets.REGISTRY_USER }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          push: true
+          tags: ${{ secrets.REGISTRY_HOST }}/ocr-plate-service:${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Notify Publish Failed
+        if: failure()
+        uses: rendsyah/.github/.github/actions/notify@main
+        with:
+          channels: '["telegram"]'
+          status: "FAILED"
+          notify_url: ${{ vars.NOTIFY_URL }}
+          remarks: "Build failed (Publish)"
+
+  cd:
+    name: CD - OCR Plate Service
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Notify Deployment Started
+        continue-on-error: true
+        uses: rendsyah/.github/.github/actions/notify@main
+        with:
+          channels: '["telegram"]'
+          status: "STARTED"
+          notify_url: ${{ vars.NOTIFY_URL }}
+          remarks: "Build started (CD - ${{ github.ref_name }})"
+
+      - name: Execute Deployment to Server
+        uses: appleboy/ssh-action@v1
+        env:
+          REGISTRY_HOST: ${{ secrets.REGISTRY_HOST }}
+          REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          IMAGE_TAG: ${{ github.ref_name }}
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_KEY }}
+          envs: REGISTRY_HOST, REGISTRY_USER, REGISTRY_PASSWORD, IMAGE_TAG
+          script: |
+            set -euo pipefail
+            cd /opt/projects/ocr-plate-service
+            make deploy
+
+      - name: Execute Health Check
+        uses: nick-invision/retry@v3
+        with:
+          max_attempts: 3
+          timeout_minutes: 1
+          retry_wait_seconds: 60
+          command: curl -fsS --max-time 5 -o /dev/null "${{ vars.HEALTH_URL }}"
+
+      - name: Notify Deployment Result
+        if: always()
+        continue-on-error: true
+        uses: rendsyah/.github/.github/actions/notify@main
+        with:
+          channels: '["telegram"]'
+          status: ${{ job.status == 'success' && 'SUCCESS' || 'FAILED' }}
+          notify_url: ${{ vars.NOTIFY_URL }}
+          remarks: ${{ job.status == 'success' && 'Build success (CD)' || 'Build failed (CD)' }}
+
+  release:
+    name: Release - OCR Plate Service
+    needs: cd
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
